@@ -3,5 +3,16 @@
  */
 package workdocs
 
-import kotlin.test.Test
-import kotlin.test.assertNotNull
+import io.kotlintest.shouldBe
+import io.kotlintest.shouldNotBe
+import io.kotlintest.specs.StringSpec
+
+class TestIntegrationInvokeWorkflow : StringSpec() {
+    init {
+        "Can Invoke Test Workflow" {
+                main(arrayOf("ls"))
+
+        }
+
+    }
+}

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Configuration>
+  <Properties>
+
+    <!-- Logfile location 
+      env NEXSTRA_LOGFILE 
+      ./xxx.log 
+      env NEXSTRA_LOGLEVEL
+      info
+    -->
+    <Property name="nexstra.LOGFILE">./docstore-lib.log</Property>
+    <Property name="NEXSTRA_LOGFILE">${sys:nexstra.LOGFILE}</Property>
+    <Property name="logfile">${env:NEXSTRA_LOGFILE}</Property>
+    <Property name="nexstra.LOGLEVEL">DEBUG</Property>
+    <Property name="NEXSTRA_LOGLEVEL">${sys:nexstra.LOGLEVEL}</Property>
+    <Property name="loglevel">${env:NEXSTRA_LOGLEVEL}</Property>
+   </Properties>		
+  <Appenders>
+    <RollingFile name="A1" fileName="${logfile}" 
+      filePattern="${logfile}-%d{MM-dd-yyyy}.log">
+      <PatternLayout pattern="%d{ISO8601} %-5p [%t] %c conn=%X{db.connection} - %m%n" />
+      <TimeBasedTriggeringPolicy />
+    </RollingFile>
+    <Console name="STDOUT" target="SYSTEM_OUT">
+          <PatternLayout pattern="%d{ISO8601} %-5p [%t] %c conn=%X{db.connection} - %m%n" />
+    </Console></Appenders>
+  <Loggers>
+    <Logger name="com.nexstra" level="${loglevel}" />s
+      <Logger name="nexstra" level="${loglevel}" />s
+
+      <Logger name="httpclient" level="WARN" />
+    <Logger name="odd" level="${loglevel}" />
+    <Logger name="org.apache.http" level="WARN" />
+    <Logger name="org.apache.fop" level="DEBUG" />
+    <Logger name="com.amazonaws" level="WARN" />
+    <logger name="com.amazonaws.auth.profile.internal" level="ERROR"/>
+    <Root level="INFO">
+      <AppenderRef ref="STDOUT" level="ERROR" />
+      <AppenderRef ref="A1" />
+    </Root>
+  </Loggers>
+</Configuration>

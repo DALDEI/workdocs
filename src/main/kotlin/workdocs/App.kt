@@ -9,17 +9,18 @@ import com.beust.jcommander.Parameter
 import com.beust.jcommander.ParameterException
 import com.beust.jcommander.Parameters
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import org.apache.http.entity.ContentType
 import org.apache.logging.log4j.kotlin.logger
-import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.io.InputStream
-import java.io.OutputStream
+import org.apache.logging.log4j.kotlin.namedLogger
+import java.io.*
+import java.net.ContentHandler
+import java.util.*
 
 
 abstract class CommonArgs
 {
-  @Parameter(names =["--folder"],description = "Folder name")
-  var folder: String = "359145ea251b5c82f99311daa400da6d959b0ba13d73602c9c2df48ee16062dd"
+  @Parameter(names =["--folder-id"],description = "Folder ID")
+  var folderID: String = "359145ea251b5c82f99311daa400da6d959b0ba13d73602c9c2df48ee16062dd"
 
   @Parameter(names=["--organization","--organization-id"],description = "organization id")
   var orginazation = "d-926722377d"
@@ -36,61 +37,106 @@ abstract class CommonArgs
 
 
   @Parameter(names=["--input", "--source"],
-      description="Import table from file/url")
-  lateinit var source: String
+      description="Import from file/url")
+  var source: List<File> = mutableListOf()
 
   @Parameter(names=["--output", "--dest"],
       description="Output file/url")
   public var output: String? = null
 
-  fun getSource(): InputStream
-      =
-    if(!::source.isInitialized || source.isNullOrBlank()) System.`in`
-    else if (source.startsWith("file:/")) java.net.URL(source).openStream()
-    else FileInputStream(source)
-
-  fun getOutput(): OutputStream =
-    if (output.isNullOrBlank()) System.`out`
-    else FileOutputStream(output)
-
   abstract fun run() : Unit
 
-  fun getClient() = AmazonWorkDocsClientBuilder.standard().also {
-    if( ::region.isInitialized )
-      it.region = region
-  }.build()
+
+}
+
+fun pushDir( client: AmazonWorkDocsClient , curdir: String , dir: File ) {
+    val res = client.createFolder(CreateFolderRequest().withParentFolderId(curdir).withName(dir.name))
+    res.metadata
 }
 
 class CommandImport : CommonArgs()
 {
 
   override fun run() {
+  /*
+    val client = getClient()
+    val cb = ContentManagerBuilder.standard().withWorkDocsClient(client).build()
+    var curFolder = folder
+    for( f in source ) {
+      f.walk().onEnter {
+        println("Enter:${it}")
+    //       curFolder = pushdDir( client,  curFolder , it )
+
+        true
+      }.onFail {f, e->
+        println("Error: ${f}: ${e}")
+      }.forEach {
+        println("Each: ${it}")
+
+      }
+    }
+
+    /*
+
+      f.inputStream().use {ins->
+        val upload = cb.uploadDocumentStream(UploadDocumentStreamRequest().withDocumentName(f.name)
+          .withContentCreatedTimestamp(f.ctime)
+          .withDocumentSizeInBytes(f.length())
+          .withContentModifiedTimestamp(f.modtime)
+          .withParentFolderId(folder)
+          .withContentType( contentTypeFor(f,true))
+          .withStream(ins))
+        println(upload.pretty())
+      }
+    }
+
+     */
+   */
   }
 }
 fun pl(any:Any) = println(any.pretty())
-class CommandList : CommonArgs()
-{
+class CommandList : CommonArgs() {
+  @Parameter(description = "Files to list")
+  var files : MutableList<String> = mutableListOf()
 
-   @Parameter(names=["-l","--long"],description = "List files/folders")
-   var long: Boolean = false
+  @Parameter(names =["-r","--recurse"],description = "recursive")
+  var recurse : Boolean = false
+
+  @Parameter(names = ["-l", "--long"], description = "List files/folders")
+  var long : Boolean = false
+
+  @Parameter(names = ["-v", "--versions"], description = "List versions")
+  var versions : Boolean = false
+  var indent : Int = 0
 
   override fun run() {
-    val client = getClient()
-    val df = client.describeFolderContents(DescribeFolderContentsRequest().withFolderId(folder))
-    df.folders.forEach{
-      if( long )
-        pl( it )
-      else
-        pl( it.name)
-    }
-    df.documents.forEach {
-    if( long)
-      pl(it)
-      else
-      pl(it.latestVersionMetadata.name)
-    }
+    if (files.isEmpty())
+      listFolder(folderID)
 
+    for (f in files)
+      listFile(WorkDocName(f, folderID))
 
+  }
+  fun print(file:WorkDoc ) {
+
+    if( long ) pl(file) else println("""${file.id} ${if(file.isFile) "F" else "D" } ${" ".repeat(indent)}${file.name}""")
+  }
+
+  fun listFile(name : WorkDocName) {
+    val f = findWorkDoc(name)
+    print(f)
+    if( f.isFolder ) listFolder(f.id)
+  }
+  fun listFolder(id: String ) {
+    val folder = getFolder(id)
+      listAll(id).forEach {
+        print(it)
+        if( it.isFolder && recurse ) {
+          indent++
+          listFolder(it.id)
+          indent--
+        }
+      }
   }
 }
 class CommandShared : CommonArgs()
@@ -100,8 +146,7 @@ class CommandShared : CommonArgs()
   var long: Boolean = false
 
   override fun run() {
-    val client = getClient()
-    val df = client.getResources(GetResourcesRequest().withUserId(user).withCollectionType("SHARED_WITH_ME"))
+    val df = WorkDocs.client.getResources(GetResourcesRequest().withUserId(user).withCollectionType("SHARED_WITH_ME"))
     df.folders.forEach{
       if( long )
         pl( it )
@@ -123,8 +168,7 @@ class CommandUsers : CommonArgs()
 {
 
   override fun run() {
-    val client = getClient()
-    client.describeUsers(DescribeUsersRequest().withOrganizationId(orginazation)).users.forEach {
+    WorkDocs.client.describeUsers(DescribeUsersRequest().withOrganizationId(orginazation)).users.forEach {
       pl( it )
     }
 
@@ -137,8 +181,7 @@ class CommandInfo : CommonArgs()
 {
 
   override fun run() {
-    val client  = getClient()
-    val u = client.getCurrentUser(GetCurrentUserRequest())
+    val u = WorkDocs.client.getCurrentUser(GetCurrentUserRequest())
     println( u.user.pretty() )
 
   }
