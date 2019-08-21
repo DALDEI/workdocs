@@ -7,15 +7,13 @@ import com.amazonaws.services.workdocs.model.*
 import com.beust.jcommander.JCommander
 import com.beust.jcommander.Parameter
 import com.beust.jcommander.ParameterException
-import com.beust.jcommander.Parameters
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import org.apache.http.entity.ContentType
-import org.apache.logging.log4j.kotlin.logger
-import org.apache.logging.log4j.kotlin.namedLogger
+import mu.KotlinLogging.logger
 import java.io.*
-import java.net.ContentHandler
-import java.util.*
-
+import workdocs.*
+import workdocs.WorkDocs.findWorkDoc
+import workdocs.WorkDocs.getFolder
+import workdocs.WorkDocs.listAll
 
 abstract class CommonArgs
 {
@@ -114,15 +112,15 @@ class CommandList : CommonArgs() {
       listFolder(folderID)
 
     for (f in files)
-      listFile(WorkDocName(f, folderID))
+      listFile(WorkDocs.WorkDocName(f, folderID))
 
   }
-  fun print(file:WorkDoc ) {
+  fun print(file: WorkDocs.WorkDoc) {
 
     if( long ) pl(file) else println("""${file.id} ${if(file.isFile) "F" else "D" } ${" ".repeat(indent)}${file.name}""")
   }
 
-  fun listFile(name : WorkDocName) {
+  fun listFile(name : WorkDocs.WorkDocName) {
     val f = findWorkDoc(name)
     print(f)
     if( f.isFolder ) listFolder(f.id)
@@ -193,9 +191,9 @@ class CommandMain
   @Parameter(names=arrayOf("--help"), description="Help")
   var help: Boolean=false
 }
-val log = logger("workdocs")
+val log = logger{}
 fun main(args: Array<String>) {
-  log.info("main")
+  log.info{"main"}
   val commands=mapOf<String, CommonArgs>(
       "info" to CommandInfo(),
       "ls" to CommandList(),
@@ -225,7 +223,7 @@ fun main(args: Array<String>) {
   }
   catch (e: Throwable)
   {
-    log.error(e)
+    log.error(e){e.message}
     e.printStackTrace(System.err)
   }
 
